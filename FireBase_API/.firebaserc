@@ -1,0 +1,5 @@
+{
+  "projects": {
+    "default": "sbc-esp32-smartdoor"
+  }
+}
