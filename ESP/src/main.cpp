@@ -28,10 +28,10 @@ const char* password = "123789qwerty";
 #define fireBase_Pwd "123789"
 #define fireBase_ID "qpz3sCm9dJhaH4WvL0jZEi7Ej7J3"
 #define fireBase_Code "SD-0001"
-#define fireBase_API_KEY "AIzaSyDTRPMk594zhwgMj6-u0PCEe8-otsjgElQ"
-#define fireBase_AuthDomain "sbc-esp32-smartdoor.firebaseapp.com"
+#define fireBase_API_KEY "YOUR-API-KEY"
+#define fireBase_AuthDomain "YOUR-DOMAIN"
 //URL API
-String serverName = "https://europe-west1-sbc-esp32-smartdoor.cloudfunctions.net/";
+String serverName = "YOUR-URL";
 String lastFirmwareUrl = "firmware/GetLastFirmWare";
 String DoorNFCUrl = "door/IsValidCode";
 //Variables para HTTPS
