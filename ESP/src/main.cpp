@@ -11,7 +11,7 @@
 
 //FIRMWARE
 #define CheckFirmwareFL 0   
-#define FIRMWARE_VERSION 0.01
+#define FIRMWARE_VERSION 0.1
 
 static const char *server_certificate = "-----BEGIN CERTIFICATE-----\nMIIC/DCCAeSgAwIBAgIIKn4P6HR6+bowDQYJKoZIhvcNAQEFBQAwIDEeMBwGA1UE\nAxMVMTExNDQ1MjE2MzY4OTk2MDA5MDkwMCAXDTIxMTExMTE2NTYzOFoYDzk5OTkx\nMjMxMjM1OTU5WjAgMR4wHAYDVQQDExUxMTE0NDUyMTYzNjg5OTYwMDkwOTAwggEi\nMA0GCSqGSIb3DQEBAQUAA4IBDwAwggEKAoIBAQCejuG4QwmltwGgvUW8qlQImXpH\n2UtwYtixGtShto5knYpu3cp8u0FTzlWkiTZMAVH7QoVNjradBEZK706GBxtsEqSr\nwMdCLMm0g9GwrmGRzHGsG8c2vViwSAb79E87D/ZTweuGaWaUFTb3GileKv2OKs8o\n+Q58v0ND4Qti5vR6Cjn49gdUYSNY7R7QKm5u+1iipiHXICAFsFyzRz3EaywYSpAn\nipTbD2XduWoRqMNOz3UebSjZQBOfoK1dnbXbCpTBRpiYz/RSfQNn5DHfiHPd9977\nD+93I8d1geVy/6grbgPXp9gtSDAq7OQcFFQMztT22hR9uqU9lgOTsTWBMxtzAgMB\nAAGjODA2MAwGA1UdEwEB/wQCMAAwDgYDVR0PAQH/BAQDAgeAMBYGA1UdJQEB/wQM\nMAoGCCsGAQUFBwMCMA0GCSqGSIb3DQEBBQUAA4IBAQAK2IJe8XkzBjy30qlL+UlJ\n2nnUfaOBb7ZjkYvikjbJYnUwzMKnn59XFadkIOW9gyLhwAgGyjy2skX3rE59DUkt\nYRfVEXUxa2mo+Cnx/SfMRT4wDT5r1QGnIGhk+84LHcPHb4G9T3k/LqF0RAEOciDG\nGo8feq2SLESUvrea0pJfytmQSzj2KIlFRhWQCF0rku6cDW6/oQq/e2rXRC74fLWP\nfkZk0kwO/ptTbty7DwymFX3wXPMsgILQZ78wYD5Zn8hMEdkTywaHHNkT3j4ECJzs\n6FNMm7e81AIkgQ6KIGfA55s38XUlWpTCx8RRk+BJpH2WESjJN7JMO5ihqCUhMg03\n-----END CERTIFICATE-----\n";
 
@@ -19,19 +19,19 @@ static HttpsOTAStatus_t otastatus;
 
 //Datos Wifi
 const char* host = "esp32";
-//const char* ssid = "Te Espio";
-//const char* password = "123789qwerty";
-const char* ssid = "DIGIFIBRA-GheA-HOME";
+const char* ssid = "Te Espio";
 const char* password = "123789qwerty";
+//const char* ssid = "DIGIFIBRA-GheA-HOME";
+//const char* password = "123789qwerty";
 //Datos ESP32
 #define fireBase_Email "door1@sbcsmartdoor.com"
 #define fireBase_Pwd "123789"
 #define fireBase_ID "qpz3sCm9dJhaH4WvL0jZEi7Ej7J3"
 #define fireBase_Code "SD-0001"
-#define fireBase_API_KEY "YOUR-API-KEY"
-#define fireBase_AuthDomain "YOUR-DOMAIN"
+#define fireBase_API_KEY "AIzaSyC1_5OpxQTw2T_b8_gSfOJdw0VIgB5wmQo"
+#define fireBase_AuthDomain "sbc-esp32-smartdoor.firebaseapp.com"
 //URL API
-String serverName = "YOUR-URL";
+String serverName = "https://europe-west1-sbc-esp32-smartdoor.cloudfunctions.net/";
 String lastFirmwareUrl = "firmware/GetLastFirmWare";
 String DoorNFCUrl = "door/IsValidCode";
 //Variables para HTTPS
@@ -57,12 +57,13 @@ unsigned long lastTimeUpdateFW = 0;
 unsigned long FirmWareUpdateTimer = 30000; //millisecons. 60k ms = 1 min.
 
 //RFID
-#define CheckRFIDFL 0 
+#define CheckRFIDFL 1 
 MFRC522 rfid(pinSDA, pinRST);
 String urlCaracteres;
 
 //ESP EYE
 uint8_t broadcastAddress[] = {0xC4, 0x4F, 0x33, 0x18, 0xAE, 0x2D};
+//MAC ESP1: 24:62:AB:F3:AF:D0
 // Definir variables para enviar
 bool activar;
 // variables que recibe
@@ -372,11 +373,25 @@ void CheckRFID(){
             //RECONOCIMIENTO FACIAL
             activacion.message=true;
             esp_err_t result = esp_now_send(broadcastAddress, (uint8_t *) &activacion, sizeof(activacion));
-            //TODO: Revisar con diego
+            for(int i = 0; i<20; i++){
+              Serial.println("Reconociendo Cara");
+              delay(1000);
+            }
+            if(reconocimiento.message){
+               //TODO: Revisar con diego
             Serial.println("Tarjeta Correcta");
             DisplayMessage(idOK);
             //TODO: Revisar los leds
             digitalWrite(led, HIGH);
+            //Se escribe registro en base de datos.
+            //SetNewRegister(urlCaracteres);
+            //Se envian registros a ThingsBoard
+            }
+            else{
+              Serial.println("acceso denegado");
+              DisplayMessage("FUERA");
+            }
+            
           }
           else{
             Serial.println("Acceso denegado");
@@ -533,12 +548,12 @@ void loop() {
       CheckRFID();
     }
 
-    if(isValidRFID("2281224977") == 1){
+    /*if(isValidRFID("2281224977") == 1){
       Serial.println("Tarjeta Correcta");
     }
     else{
       Serial.println("Tarjeta incorrecta");
-    }
+    }*/
     delay(1000);
   }
   if(WiFi.status() == WL_DISCONNECTED){

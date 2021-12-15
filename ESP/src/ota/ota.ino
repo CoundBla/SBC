@@ -10,8 +10,8 @@
 #include <LiquidCrystal.h>
 
 //FIRMWARE
-#define CheckFirmwareFL 0   
-#define FIRMWARE_VERSION 0.01
+#define CheckFirmwareFL 1   
+#define FIRMWARE_VERSION 0.1
 
 static const char *server_certificate = "-----BEGIN CERTIFICATE-----\nMIIC/DCCAeSgAwIBAgIIKn4P6HR6+bowDQYJKoZIhvcNAQEFBQAwIDEeMBwGA1UE\nAxMVMTExNDQ1MjE2MzY4OTk2MDA5MDkwMCAXDTIxMTExMTE2NTYzOFoYDzk5OTkx\nMjMxMjM1OTU5WjAgMR4wHAYDVQQDExUxMTE0NDUyMTYzNjg5OTYwMDkwOTAwggEi\nMA0GCSqGSIb3DQEBAQUAA4IBDwAwggEKAoIBAQCejuG4QwmltwGgvUW8qlQImXpH\n2UtwYtixGtShto5knYpu3cp8u0FTzlWkiTZMAVH7QoVNjradBEZK706GBxtsEqSr\nwMdCLMm0g9GwrmGRzHGsG8c2vViwSAb79E87D/ZTweuGaWaUFTb3GileKv2OKs8o\n+Q58v0ND4Qti5vR6Cjn49gdUYSNY7R7QKm5u+1iipiHXICAFsFyzRz3EaywYSpAn\nipTbD2XduWoRqMNOz3UebSjZQBOfoK1dnbXbCpTBRpiYz/RSfQNn5DHfiHPd9977\nD+93I8d1geVy/6grbgPXp9gtSDAq7OQcFFQMztT22hR9uqU9lgOTsTWBMxtzAgMB\nAAGjODA2MAwGA1UdEwEB/wQCMAAwDgYDVR0PAQH/BAQDAgeAMBYGA1UdJQEB/wQM\nMAoGCCsGAQUFBwMCMA0GCSqGSIb3DQEBBQUAA4IBAQAK2IJe8XkzBjy30qlL+UlJ\n2nnUfaOBb7ZjkYvikjbJYnUwzMKnn59XFadkIOW9gyLhwAgGyjy2skX3rE59DUkt\nYRfVEXUxa2mo+Cnx/SfMRT4wDT5r1QGnIGhk+84LHcPHb4G9T3k/LqF0RAEOciDG\nGo8feq2SLESUvrea0pJfytmQSzj2KIlFRhWQCF0rku6cDW6/oQq/e2rXRC74fLWP\nfkZk0kwO/ptTbty7DwymFX3wXPMsgILQZ78wYD5Zn8hMEdkTywaHHNkT3j4ECJzs\n6FNMm7e81AIkgQ6KIGfA55s38XUlWpTCx8RRk+BJpH2WESjJN7JMO5ihqCUhMg03\n-----END CERTIFICATE-----\n";
 
@@ -28,7 +28,7 @@ const char* password = "123789qwerty";
 #define fireBase_Pwd "123789"
 #define fireBase_ID "qpz3sCm9dJhaH4WvL0jZEi7Ej7J3"
 #define fireBase_Code "SD-0001"
-#define fireBase_API_KEY "AIzaSyDTRPMk594zhwgMj6-u0PCEe8-otsjgElQ"
+#define fireBase_API_KEY "AIzaSyC1_5OpxQTw2T_b8_gSfOJdw0VIgB5wmQo"
 #define fireBase_AuthDomain "sbc-esp32-smartdoor.firebaseapp.com"
 //URL API
 String serverName = "https://europe-west1-sbc-esp32-smartdoor.cloudfunctions.net/";
@@ -373,10 +373,13 @@ void CheckRFID(){
             activacion.message=true;
             esp_err_t result = esp_now_send(broadcastAddress, (uint8_t *) &activacion, sizeof(activacion));
             //TODO: Revisar con diego
-            Serial.println("Tarjeta Correcta");
+            Serial.println("Access Granted");
             DisplayMessage(idOK);
             //TODO: Revisar los leds
             digitalWrite(led, HIGH);
+            //Se escribe registro en base de datos.
+            //SetNewRegister(urlCaracteres);
+            //Se envian registros a ThingsBoard
           }
           else{
             Serial.println("Acceso denegado");
@@ -438,10 +441,14 @@ int isValidRFID(String nfcID){
 
   for (int i = 0; i < keys.length(); i++) {
     JSONVar value = queryObjs[keys[i]];
+    String keystr;
     Serial.print(keys[i]);
     Serial.print(" = ");
     Serial.println(value);
-    
+    keystr = keys[i];
+    if(keystr == "isValid"){
+      isvalid = value;
+    }    
     //setFirmwareInfo(value);
 
   }
@@ -530,7 +537,7 @@ void loop() {
     }
 
     if(isValidRFID("2281224977") == 1){
-      Serial.println("Tarjeta Correcta");
+      Serial.println("Access Granted");
     }
     else{
       Serial.println("Tarjeta incorrecta");
