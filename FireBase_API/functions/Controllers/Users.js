@@ -81,11 +81,12 @@ function validateDoor(door)
  * Además se crearán las misiones obligatorias y se asignaran al usuario.
  * usuario:
  * {
- *      email: "ejemplo@ej.com",
- *      password: "paswd",
- *      nickname: "nickname",
+ *      Email: "ejemplo@ej.com",
+ *      Password: "paswd",
+ *      matricula: "codigo",
  *      mombre: "Nombre",
- *      apellidos: "Apellido1 Apellido2"
+ *      apellidos: "Apellido1 Apellido2",
+ *      nfc:"codigonfc"
  * }
  */
  UserApp.post("/SetUser", async(req, res) => {
@@ -100,7 +101,7 @@ function validateDoor(door)
         await auth.createUser({
             email: userMap.Email,
             password: userMap.Password,
-            displayName: userMap.DoorCode
+            displayName: userMap.matricula
         }).then((cred)=>{
             credenciales = cred;
         })
@@ -116,24 +117,19 @@ function validateDoor(door)
             .catch((error) =>{
                 console.log(error)
                 return res.status(500).json({error:"Se ha producido un error al crear el registro de usuario: "+error});
-            });
-        //Para añadir la información a UsuarioMision, no hace falta el email del usuario
-        delete userMap.Email;
-        //await CrearAdministraciónUsuario(uid);//TODO: ver como implementar administracion de perfil.    
-       
-        res.status(200).json({message:"Supervisor creado correctamente"});
-       
+            });        
     }
     catch(error){
         console.log(error)
         return res.status(500).json({error:error.message});
     }
+    return res.status(200).json({msg:"Usuario creado correctamente"});
 });
 function validateUser(user)
 {
-    if(!user.DoorCode || user.DoorCode.trim() === "")
+    if(!user.matricula || user.matricula.trim() === "")
     {
-        return {message:"Debe rellenar el Nickname"};
+        return {message:"Debe rellenar el código de matrícula"};
     }
     if(!user.Email || user.Email.trim() === "")
     {
@@ -146,16 +142,23 @@ function validateUser(user)
     }
 
 }
-/*async function CrearAdministraciónUsuario(uid){
-    var perfilInfo, adminInfo, docUserRef;
-    
-    docUserRef = db.collection("user").doc(uid);
-    //TODO: Crear reglas de acceso. Admite lectura por usuario, escritura solo admin.
-    perfilInfo = await docUserRef.collection("").doc("ss").set(uid);
-    //TODO: Crear reglas de acceso. Solo admite escritura de admin. lectura libre.
-    
-}*/
+/**Función que devuelve los usuarios dados de alta en el sistema */
+//Esta función no tiene seguridad. TODO: Volver post, y que reciba como dato un password.
+UserApp.get("/GetUsers", async(req,res)=>{
+    var mapUsers = {};
+    const userRef = db.collection("User");
 
+    const listUsers = await userRef.orderBy("matricula","asc").get();
+    if(listUsers.empty){
+        return res.status(500).json({error:"No se han encontrado usuarios"});
+    }
+    listUsers.forEach(user=>{
+        //var objusr = {};
+        var usrData = user.data();
+        mapUsers[usrData.matricula] = usrData.nombre +" "+ usrData.apellidos;        
+    })
+    return res.status(200).json(mapUsers); 
+});
 /*************************************/
 /***EXPORTAMOS FUNCIONES DE USUARIOS**/
 /*********************************** */

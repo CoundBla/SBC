@@ -1,3 +1,4 @@
+#include <Arduino.h>
 #include <WiFi.h>
 #include <HttpsOTAUpdate.h>
 #include <HTTPClient.h>
@@ -8,9 +9,10 @@
 #include <MFRC522.h>
 #include <esp_now.h>
 #include <LiquidCrystal.h>
+#include <ThingsBoard.h>
 
 //FIRMWARE
-#define CheckFirmwareFL 1   
+#define CheckFirmwareFL 0   
 #define FIRMWARE_VERSION 0.1
 
 static const char *server_certificate = "-----BEGIN CERTIFICATE-----\nMIIC/DCCAeSgAwIBAgIIKn4P6HR6+bowDQYJKoZIhvcNAQEFBQAwIDEeMBwGA1UE\nAxMVMTExNDQ1MjE2MzY4OTk2MDA5MDkwMCAXDTIxMTExMTE2NTYzOFoYDzk5OTkx\nMjMxMjM1OTU5WjAgMR4wHAYDVQQDExUxMTE0NDUyMTYzNjg5OTYwMDkwOTAwggEi\nMA0GCSqGSIb3DQEBAQUAA4IBDwAwggEKAoIBAQCejuG4QwmltwGgvUW8qlQImXpH\n2UtwYtixGtShto5knYpu3cp8u0FTzlWkiTZMAVH7QoVNjradBEZK706GBxtsEqSr\nwMdCLMm0g9GwrmGRzHGsG8c2vViwSAb79E87D/ZTweuGaWaUFTb3GileKv2OKs8o\n+Q58v0ND4Qti5vR6Cjn49gdUYSNY7R7QKm5u+1iipiHXICAFsFyzRz3EaywYSpAn\nipTbD2XduWoRqMNOz3UebSjZQBOfoK1dnbXbCpTBRpiYz/RSfQNn5DHfiHPd9977\nD+93I8d1geVy/6grbgPXp9gtSDAq7OQcFFQMztT22hR9uqU9lgOTsTWBMxtzAgMB\nAAGjODA2MAwGA1UdEwEB/wQCMAAwDgYDVR0PAQH/BAQDAgeAMBYGA1UdJQEB/wQM\nMAoGCCsGAQUFBwMCMA0GCSqGSIb3DQEBBQUAA4IBAQAK2IJe8XkzBjy30qlL+UlJ\n2nnUfaOBb7ZjkYvikjbJYnUwzMKnn59XFadkIOW9gyLhwAgGyjy2skX3rE59DUkt\nYRfVEXUxa2mo+Cnx/SfMRT4wDT5r1QGnIGhk+84LHcPHb4G9T3k/LqF0RAEOciDG\nGo8feq2SLESUvrea0pJfytmQSzj2KIlFRhWQCF0rku6cDW6/oQq/e2rXRC74fLWP\nfkZk0kwO/ptTbty7DwymFX3wXPMsgILQZ78wYD5Zn8hMEdkTywaHHNkT3j4ECJzs\n6FNMm7e81AIkgQ6KIGfA55s38XUlWpTCx8RRk+BJpH2WESjJN7JMO5ihqCUhMg03\n-----END CERTIFICATE-----\n";
@@ -19,10 +21,10 @@ static HttpsOTAStatus_t otastatus;
 
 //Datos Wifi
 const char* host = "esp32";
-//const char* ssid = "Te Espio";
-//const char* password = "123789qwerty";
-const char* ssid = "DIGIFIBRA-GheA-HOME";
+const char* ssid = "Te Espio";
 const char* password = "123789qwerty";
+//const char* ssid = "DIGIFIBRA-GheA-HOME";
+//const char* password = "123789qwerty";
 //Datos ESP32
 #define fireBase_Email "door1@sbcsmartdoor.com"
 #define fireBase_Pwd "123789"
@@ -34,6 +36,8 @@ const char* password = "123789qwerty";
 String serverName = "https://europe-west1-sbc-esp32-smartdoor.cloudfunctions.net/";
 String lastFirmwareUrl = "firmware/GetLastFirmWare";
 String DoorNFCUrl = "door/IsValidCode";
+String eventUrl = "door/getLastevent";
+String checkUrl = "door/SetNewCheck";
 //Variables para HTTPS
 String httpRequest;
 double firmWareVersionNum;
@@ -43,10 +47,11 @@ String firmWareVersionURL;
 #define DEEP_SLEEP_TIME 30
 
 //Pines
-#define LED 27
+#define LEDV 2
+#define LEDR 4
 const int pinRST = 15;  // Pin RST del módulo RC522
 const int pinSDA = 5; // pin SDA del módulo RC522
-const int buzzer = 27;
+const int buzzer = 22;
 const int led = 2;//Led onboard del esp32
 
 //Variables de tiempo
@@ -57,12 +62,13 @@ unsigned long lastTimeUpdateFW = 0;
 unsigned long FirmWareUpdateTimer = 30000; //millisecons. 60k ms = 1 min.
 
 //RFID
-#define CheckRFIDFL 0 
+#define CheckRFIDFL 1 
 MFRC522 rfid(pinSDA, pinRST);
 String urlCaracteres;
 
 //ESP EYE
 uint8_t broadcastAddress[] = {0xC4, 0x4F, 0x33, 0x18, 0xAE, 0x2D};
+//MAC ESP1: 24:62:AB:F3:AF:D0
 // Definir variables para enviar
 bool activar;
 // variables que recibe
@@ -83,6 +89,19 @@ int lcdColumns = 20;
 int lcdRows = 4;
 const int RS = 13, EN = 14, d4 = 27, d5 = 26,d6 = 25 , d7 = 33;
 LiquidCrystal lcd(RS,EN,d4, d5, d6, d7);
+
+//Telemetria
+#define TOKEN               "o2C0giMc8NIj5TETeSOG"
+#define THINGSBOARD_SERVER  "demo.thingsboard.io"
+
+WiFiClient client;
+ThingsBoard tb(client);
+
+//Datos Clase
+int aforoMax = 30;
+int aforoActual = 0;
+String aula2 = "";
+String eventID = "";
 
 
 String idOK = "Identificacion correcta";
@@ -110,16 +129,27 @@ void OnDataRecv(const uint8_t * mac, const uint8_t *incomingData, int len);
 void scrollText(int row, String message, int delayTime, int lcdColumns);
 void DisplayMessage(String msg);
 void goToDeepSleep(long timeInMicroSeconds);
+void SendStringTelemetrytoTB(String data);
+void SendIntTelemetryToTB(int data);
+void ConnectToThingsBoard();
+//void SetNewCheck();
+//void UpdateLastEventData();
+
 
 //Función que se utilizará para asignar valores iniciales a las variables globales. Se incluyen los pinMode(...)
-void SetGlobalVariables(){
-  pinMode(LED,OUTPUT);  
+void SetGlobalVariables(){  
   pinMode(buzzer, OUTPUT);
+  pinMode(LEDV,OUTPUT);
+  pinMode(LEDR,OUTPUT);
+  ledcSetup(0,1E5,12);
+  ledcAttachPin(buzzer,0);
   pinMode(led, OUTPUT);
   t1 = millis();
   //RFID
   SPI.begin();
-  rfid.PCD_Init();//Inicilializar lector
+  rfid.PCD_Init(); //Inicilializar lector
+  //Display
+  lcd.begin(20,4);
 
   //ESP-EYE
   if (esp_now_init() != ESP_OK) {
@@ -145,6 +175,7 @@ void SetGlobalVariables(){
 }
 //Función que se utiliza para conectar al WIFI.
 void ConnectToWifi(){
+  
   // Connect to WiFi network
   WiFi.begin(ssid, password);
   Serial.println("");
@@ -160,14 +191,17 @@ void ConnectToWifi(){
   Serial.println(ssid);
   Serial.print("IP address: ");
   Serial.println(WiFi.localIP());
+
+  //Thingsboard
+  
 }
 
 //Función que parpadea un led conectado al pin LED
-void ParpadearLuz(){
+void ParpadearLuz(int ledPin){
       t2= millis();
-  digitalWrite(LED, HIGH);   // turn the LED on (HIGH is the voltage level)
+  digitalWrite(ledPin, HIGH);   // turn the LED on (HIGH is the voltage level)
   delay(1000);                       // wait for a second
-  digitalWrite(LED, LOW);    // turn the LED off by making the voltage LOW
+  digitalWrite(ledPin, LOW);    // turn the LED off by making the voltage LOW
   delay(1000);    
   
     if(t2 >= (t1+10000)){
@@ -180,6 +214,7 @@ void bip(int demora)
 {
   digitalWrite(buzzer, HIGH);
   delay(demora);
+  Serial.println("BIP");
   digitalWrite(buzzer, LOW);  
 }
 
@@ -224,7 +259,7 @@ void UpdateFirmWare(){
     min_free_heap_size = esp_get_minimum_free_heap_size(); 
     printf("\n free heap size = %d \t  min_free_heap_size = %d \n",free_heap_size,min_free_heap_size);
     Serial.println(url);
-    HttpsOTA.begin(url, server_certificate); 
+    HttpsOTA.begin(url, server_certificate,true); 
 }
 
 //Se realiza un get, y la función devuelve el string correspondiente
@@ -354,6 +389,8 @@ void setFirmwareInfo(JSONVar obj){
 void CheckRFID(){
   if (rfid.PICC_IsNewCardPresent())  // Hay una nueva tarjeta presente
   {
+    Serial.println("LEE TARJETA");
+    bip(450);
     if (rfid.PICC_ReadCardSerial())  // Leemos el contenido de la tarjeta
     {
       Serial.println("UID de la tarjeta:");
@@ -372,32 +409,73 @@ void CheckRFID(){
             //RECONOCIMIENTO FACIAL
             activacion.message=true;
             esp_err_t result = esp_now_send(broadcastAddress, (uint8_t *) &activacion, sizeof(activacion));
-            //TODO: Revisar con diego
-            Serial.println("Access Granted");
-            DisplayMessage(idOK);
-            //TODO: Revisar los leds
-            digitalWrite(led, HIGH);
-            //Se escribe registro en base de datos.
-            //SetNewRegister(urlCaracteres);
-            //Se envian registros a ThingsBoard
+            DisplayMessage("Tarjeta valida, mire a la camara");
+            Serial.println(recognize);
+            
+            if(recognize){
+              
+              digitalWrite(LEDV, HIGH);
+               //TODO: Revisar con diego
+              Serial.println("Tarjeta Correcta");
+              //Comprobamos si hay algun evento activo y si tiene clase secundaria.
+              
+              //UpdateLastEventData();
+              if(aforoActual >= aforoMax){
+                String msg = "AFORO COMPLETO. Dirijase a la clase "+ aula2;
+                DisplayMessage(msg);
+              }
+              else{
+                DisplayMessage(idOK);
+                aforoActual++;
+              }
+              delay(500);
+              digitalWrite(LEDV,LOW);
+              //SetNewCheck();
+              //TODO: Revisar los leds              
+              //Se escribe registro en base de datos.
+              //SetNewRegister(urlCaracteres);
+              //Se envian registros a ThingsBoard
+            }
+            else{
+              digitalWrite(LEDR, HIGH);
+              delay(500);
+              digitalWrite(LEDR,LOW);
+              Serial.println("acceso denegado");
+              DisplayMessage("FUERA");
+            }
+            
           }
           else{
+            digitalWrite(LEDR, HIGH);
+            delay(500);
+            digitalWrite(LEDR,LOW);
+
             Serial.println("Acceso denegado");
-            //bip(750);
+            bip(250);
             DisplayMessage("Acceso denegado");
-          }
-          Serial.print("CONECTADO");
+
+          }          
         }
         else 
         {
+          digitalWrite(LEDR, HIGH);
+          delay(500);
+          digitalWrite(LEDR,LOW);
           Serial.println("WiFi desconectado");
+          bip(400);
           DisplayMessage("WiFi desconectado");
+
         }
       }
       else
       {
+        digitalWrite(LEDR, HIGH);
+        delay(500);
+        digitalWrite(LEDR,LOW);
+
         Serial.println("Tarjeta no válida");
-        //bip(750);
+        bip(250);
+        bip(250);
         DisplayMessage("Tarjeta no válida");
         delay(1250);
       }
@@ -500,6 +578,54 @@ void DisplayMessage(String msg){
   delay(5);  
   lcd.noDisplay();
 }
+
+
+
+//TELEMERIA
+void SendStringTelemetrytoTB(String data){
+  /*Usamos una condicional donde resalta que si no se realiza la conexión, se pasa a usar las credenciales para lograr la conexión a la plataforma*/
+  if (!tb.connected()) {
+      ConnectToThingsBoard();
+      if(!tb.connected()){
+        return;
+      }
+    }
+  
+  /*Una vez realizada la conexión, se procede a imprimir la frase que indica el inicio del envío de datos*/
+  Serial.println("Sending data..."); 
+  /*Se procede a hacer el envío de los datos del sensor DHT con el respectivo nombre del valor*/
+  //const char *val;
+  //val = data.c_str();
+  //tb.sendTelemetryString("Valor", val);
+}
+
+void SendIntTelemetryToTB(int data){
+  /*Usamos una condicional donde resalta que si no se realiza la conexión, se pasa a usar las credenciales para lograr la conexión a la plataforma*/
+  if (!tb.connected()) {
+      ConnectToThingsBoard();
+      if(!tb.connected()){
+        Serial.println("Error al conectar a thingsboard");
+      }
+    }
+  
+  /*Una vez realizada la conexión, se procede a imprimir la frase que indica el inicio del envío de datos*/
+  Serial.println("Sending data..."); 
+  /*Se procede a hacer el envío de los datos del sensor DHT con el respectivo nombre del valor*/
+  tb.sendTelemetryInt("Valor", data);
+}
+
+void ConnectToThingsBoard(){
+    // Connect to the ThingsBoard
+    Serial.print("Connecting to: ");
+    Serial.print(THINGSBOARD_SERVER);
+    Serial.print(" with token ");
+    Serial.println(TOKEN);
+    /*Si no se realiza la conexión usando las credenciales, se procede a imprimir la frase de error de conexión*/
+    if (!tb.connect(THINGSBOARD_SERVER, TOKEN)) {
+      Serial.println("Failed to connect");      
+    }
+}
+
 //Función que duerme durante un tiempo en milisegundos. Tras ese tiempo se despierta, y se ejecuta el setup.
 void goToDeepSleep(long timeInMicroSeconds){
     Serial.println("Procesador a dormir ...");
@@ -512,16 +638,41 @@ void goToDeepSleep(long timeInMicroSeconds){
 void setup(){
   Serial.begin(115200);
 
+  WiFi.mode(WIFI_AP_STA);
   ConnectToWifi();
   SetGlobalVariables();    
   //Serial.println("enviando.....");
-    
+    //ESP-EYE
+  if (esp_now_init() != ESP_OK) {
+    Serial.println("Error initializing ESP-NOW");
+    return;
+  }
+
+  esp_now_register_send_cb(OnDataSent);
+
+  // Register peer
+  esp_now_peer_info_t peerInfo;
+  memcpy(peerInfo.peer_addr, broadcastAddress, 6);
+  peerInfo.channel = 0;  
+  peerInfo.encrypt = false;
+  
+  // Add peer        
+  if (esp_now_add_peer(&peerInfo) != ESP_OK){
+    Serial.println("Failed to add peer");
+    return;
+  }
+  // Register for a callback function that will be called when data is received
+    else{
+    Serial.println("OnDataRecv");
+    esp_now_register_recv_cb(OnDataRecv);
+  }
+
 }
 
 void loop() {
   // put your main code here, to run repeatedly:
   if(WiFi.status() == WL_CONNECTED){
-    ParpadearLuz();
+    //ParpadearLuz(LEDV);
     if(CheckFirmwareFL == 1)
     {
       if((millis() - lastTimeUpdateFW)> FirmWareUpdateTimer){
@@ -529,20 +680,22 @@ void loop() {
         lastTimeUpdateFW = millis();
       }
     }
+    //Añadimos el server OTA
 
     //Comprobación de RFID
     if(CheckRFIDFL == 1)
-    {
+    {      
       CheckRFID();
     }
 
-    if(isValidRFID("2281224977") == 1){
-      Serial.println("Access Granted");
+    /*if(isValidRFID("2281224977") == 1){
+      Serial.println("Tarjeta Correcta");
     }
     else{
       Serial.println("Tarjeta incorrecta");
-    }
-    delay(1000);
+    }*/
+    delay(500);
+    Serial.println(recognize);
   }
   if(WiFi.status() == WL_DISCONNECTED){
     ConnectToWifi();
